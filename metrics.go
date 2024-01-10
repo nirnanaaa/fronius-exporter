@@ -183,7 +183,7 @@ func collectMetricsFromTarget(client *fronius.SymoClient) {
 	}).Debug("Requesting data.")
 
 	wg := sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(4)
 
 	collectPowerFlowData(client, &wg)
 	collectArchiveData(client, &wg)
