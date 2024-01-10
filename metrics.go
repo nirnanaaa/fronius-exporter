@@ -257,7 +257,7 @@ func parseRealTimeInverterMetrics(data *fronius.InverterRealtimeData) {
 	realtimeMppLoad.WithLabelValues("mppt3").Set(data.LoadInDcNetworkMPP3.Value)
 	realtimeMppLoad.WithLabelValues("mppt4").Set(data.LoadInDcNetworkMPP4.Value)
 	realtimeOutputFrequency.Set(data.FrequencyPhaseAverage.Value)
-	realtimeOutputVoltage.Set(data.FrequencyPhaseAverage.Value)
+	realtimeOutputVoltage.Set(data.VoltageInAcNetwork.Value)
 }
 
 func parsePowerFlowMetrics(data *fronius.SymoData) {
