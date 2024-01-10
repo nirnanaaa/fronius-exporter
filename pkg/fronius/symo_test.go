@@ -78,3 +78,22 @@ func Test_Symo_GetMeterData_GivenUrl_WhenRequestData_ThenParseStruct(t *testing.
 	assert.Equal(t, float64(117261.0), p["0"].EnergyReactiveVArACSumConsumed)
 	assert.Equal(t, float64(4877178.0), p["0"].EnergyReactiveVArACSumProduced)
 }
+
+func Test_Symo_Get_Inverter_RealTimeData(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		payload, err := os.ReadFile("testdata/realtimeapi.json")
+		require.NoError(t, err)
+		_, _ = rw.Write(payload)
+	}))
+
+	c, err := NewSymoClient(ClientOptions{
+		URL:              server.URL,
+		PowerFlowEnabled: true,
+		ArchiveEnabled:   true,
+	})
+	require.NoError(t, err)
+
+	p, err := c.GetRealTimeInverterData()
+	assert.NoError(t, err)
+	assert.Equal(t, float64(210614.92083333334), p.TotalEnergy.Value)
+}

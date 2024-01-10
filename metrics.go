@@ -94,10 +94,10 @@ var (
 
 	// smart meter metrics
 
-	smartMeterCurrentAcPower = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	smartMeterCurrentAc = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespaceMeter,
 		Name:      "current_ac",
-		Help:      "Current AC Power Profile in W",
+		Help:      "Current AC Power Profile in Amps",
 	}, []string{"device", "phase"})
 
 	smartMeterReactiveVarAC = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -147,6 +147,29 @@ var (
 		Name:      "phase_voltage",
 		Help:      "Voltage between phase and neutral in V",
 	}, []string{"device", "phase"})
+
+	realtimeMppVoltage = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "inverter_dc_voltage",
+		Help:      "Realtime voltage information for connected MPP trackers in V",
+	}, []string{"mppt"})
+
+	realtimeMppLoad = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "inverter_dc_current",
+		Help:      "Realtime current information for connected MPP trackers in A",
+	}, []string{"mppt"})
+
+	realtimeOutputVoltage = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "inverter_ac_output_voltage",
+		Help:      "Realtime voltage information for inverter output",
+	})
+	realtimeOutputFrequency = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "inverter_ac_output_frequency",
+		Help:      "Realtime voltage information for inverter output",
+	})
 )
 
 func collectMetricsFromTarget(client *fronius.SymoClient) {
@@ -165,6 +188,7 @@ func collectMetricsFromTarget(client *fronius.SymoClient) {
 	collectPowerFlowData(client, &wg)
 	collectArchiveData(client, &wg)
 	collectSmartMeterData(client, &wg)
+	collectRealTimeInverterData(client, &wg)
 
 	wg.Wait()
 	elapsed := time.Since(start)
@@ -210,6 +234,32 @@ func collectSmartMeterData(client *fronius.SymoClient, w *sync.WaitGroup) {
 	}
 }
 
+func collectRealTimeInverterData(client *fronius.SymoClient, w *sync.WaitGroup) {
+	defer w.Done()
+	inverterData, err := client.GetRealTimeInverterData()
+	if err != nil {
+		log.WithError(err).Warn("Could not collect Symo RealTime metrics.")
+		scrapeErrorCount.Add(1)
+		return
+	}
+	parseRealTimeInverterMetrics(inverterData)
+}
+
+func parseRealTimeInverterMetrics(data *fronius.InverterRealtimeData) {
+	log.WithField("realtimeInverterData", data).Debug("Parsing data.")
+	realtimeMppVoltage.WithLabelValues("mppt1").Set(data.VoltageInDcNetworkMPP1.Value)
+	realtimeMppVoltage.WithLabelValues("mppt2").Set(data.VoltageInDcNetworkMPP2.Value)
+	realtimeMppVoltage.WithLabelValues("mppt3").Set(data.VoltageInDcNetworkMPP3.Value)
+	realtimeMppVoltage.WithLabelValues("mppt4").Set(data.VoltageInDcNetworkMPP4.Value)
+
+	realtimeMppLoad.WithLabelValues("mppt1").Set(data.LoadInDcNetworkMPP1.Value)
+	realtimeMppLoad.WithLabelValues("mppt2").Set(data.LoadInDcNetworkMPP2.Value)
+	realtimeMppLoad.WithLabelValues("mppt3").Set(data.LoadInDcNetworkMPP3.Value)
+	realtimeMppLoad.WithLabelValues("mppt4").Set(data.LoadInDcNetworkMPP4.Value)
+	realtimeOutputFrequency.Set(data.FrequencyPhaseAverage.Value)
+	realtimeOutputVoltage.Set(data.FrequencyPhaseAverage.Value)
+}
+
 func parsePowerFlowMetrics(data *fronius.SymoData) {
 	log.WithField("powerFlowData", *data).Debug("Parsing data.")
 	for key, inverter := range data.Inverters {
@@ -247,9 +297,9 @@ func parseArchiveMetrics(data map[string]fronius.InverterArchive) {
 func parseSmartMeterMetrics(data map[string]*fronius.SmartMeterData) {
 	log.WithField("meterData", data).Debug("Parsing data.")
 	for deviceId, meter := range data {
-		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase1).Set(meter.CurrentACPhase1)
-		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase2).Set(meter.CurrentACPhase2)
-		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase3).Set(meter.CurrentACPhase3)
+		smartMeterCurrentAc.WithLabelValues(deviceId, phase1).Set(meter.CurrentACPhase1)
+		smartMeterCurrentAc.WithLabelValues(deviceId, phase2).Set(meter.CurrentACPhase2)
+		smartMeterCurrentAc.WithLabelValues(deviceId, phase3).Set(meter.CurrentACPhase3)
 		smartMeterReactiveVarAC.WithLabelValues(deviceId, "consumed").Set(meter.EnergyReactiveVArACSumConsumed)
 		smartMeterReactiveVarAC.WithLabelValues(deviceId, "produced").Set(meter.EnergyReactiveVArACSumProduced)
 		smartMeterPhaseFrequencyAvg.WithLabelValues(deviceId).Set(meter.FrequencyPhaseAverage)

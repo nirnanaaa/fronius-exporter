@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	// InverterRealtimeDataPath is the Fronius API URL-path for fetching real time tracking data
+	InverterRealtimeDataPath = "/solar_api/v1/GetInverterRealtimeData.cgi?DataCollection=CommonInverterData&Scope=Device"
 	// PowerDataPath is the Fronius API URL-path for power real time data
 	PowerDataPath = "/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 	// ArchiveDataPath is the Fronius API URL-path for archive data
@@ -21,6 +23,30 @@ type (
 	SymoPowerFlow struct {
 		Body struct {
 			Data SymoData
+		}
+	}
+	InverterRealtimeChannel struct {
+		Unit  string
+		Value float64
+	}
+	InverterRealtimeData struct {
+		FrequencyPhaseAverage  InverterRealtimeChannel `json:"FAC"`
+		LoadInAcNetwork        InverterRealtimeChannel `json:"IAC"`
+		LoadInDcNetworkMPP1    InverterRealtimeChannel `json:"IDC"`
+		LoadInDcNetworkMPP2    InverterRealtimeChannel `json:"IDC_2"`
+		LoadInDcNetworkMPP3    InverterRealtimeChannel `json:"IDC_3"`
+		LoadInDcNetworkMPP4    InverterRealtimeChannel `json:"IDC_4"`
+		ApparentPowerAcNetwork InverterRealtimeChannel `json:"SAC"`
+		TotalEnergy            InverterRealtimeChannel `json:"TOTAL_ENERGY"`
+		VoltageInAcNetwork     InverterRealtimeChannel `json:"UAC"`
+		VoltageInDcNetworkMPP1 InverterRealtimeChannel `json:"UDC"`
+		VoltageInDcNetworkMPP2 InverterRealtimeChannel `json:"UDC_2"`
+		VoltageInDcNetworkMPP3 InverterRealtimeChannel `json:"UDC_3"`
+		VoltageInDcNetworkMPP4 InverterRealtimeChannel `json:"UDC_4"`
+	}
+	InverterRealtimeResponse struct {
+		Body struct {
+			Data *InverterRealtimeData
 		}
 	}
 	SecondaryMeter struct {
@@ -242,6 +268,33 @@ func (c *SymoClient) GetMeterData() (map[string]*SmartMeterData, error) {
 	}
 	defer response.Body.Close()
 	p := SmartMeterResponse{}
+	err = json.NewDecoder(response.Body).Decode(&p)
+	if err != nil {
+		return nil, err
+	}
+	return p.Body.Data, nil
+}
+
+// GetMeterData fetches current smart meter data. Items are keyed by their smart meter ID (starting with "0")
+func (c *SymoClient) GetRealTimeInverterData() (*InverterRealtimeData, error) {
+	u, err := url.Parse(c.Options.URL + InverterRealtimeDataPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	c.request.URL = u
+	client := http.DefaultClient
+	client.Timeout = c.Options.Timeout
+	response, err := client.Do(c.request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	p := InverterRealtimeResponse{}
 	err = json.NewDecoder(response.Body).Decode(&p)
 	if err != nil {
 		return nil, err
