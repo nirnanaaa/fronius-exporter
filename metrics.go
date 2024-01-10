@@ -11,8 +11,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	phase1 = "1"
+	phase2 = "2"
+	phase3 = "3"
+)
+
 var (
 	namespace           = "fronius"
+	namespaceMeter      = namespace + "_meter"
 	scrapeDurationGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "scrape_duration_seconds",
@@ -84,16 +91,62 @@ var (
 		Name:      "site_mppt_current_dc",
 		Help:      "Site mppt current DC in A",
 	}, []string{"inverter", "mppt"})
-	meterEnergyRealSumConsumedVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: namespace,
-		Name:      "meter_energy_consumed_wh_total",
-		Help:      "Meter consumed energy from grid in Wh",
+
+	// smart meter metrics
+
+	smartMeterCurrentAcPower = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "current_ac",
+		Help:      "Current AC Power Profile in W",
+	}, []string{"device", "phase"})
+
+	smartMeterReactiveVarAC = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "reactive_power",
+		Help:      "Reactive AC Power in Var",
+	}, []string{"device", "direction"})
+
+	smartMeterPhaseFrequencyAvg = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_avg_frequency",
+		Help:      "Average Phase Frequency in Hz",
 	}, []string{"device"})
-	meterEnergyRealSumProducedVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: namespace,
-		Name:      "meter_energy_produced_wh_total",
-		Help:      "Meter produced energy to grid in Wh",
-	}, []string{"device"})
+
+	smartMeterApparentPowerPhases = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_apperent_power",
+		Help:      "Apparent power per phase in W",
+	}, []string{"device", "phase"})
+
+	smartMeterPowerFactorPhase = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_power_factor",
+		Help:      "Cos Phi power factor per phase",
+	}, []string{"device", "phase"})
+
+	smartMeterReactivePowerPhase = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_reactive_power",
+		Help:      "Reactive power per phase in W",
+	}, []string{"device", "phase"})
+
+	smartMeterRealPowerPhase = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_real_power",
+		Help:      "Real power per phase in W",
+	}, []string{"device", "phase"})
+
+	smartMeterPhaseToPhaseVoltage = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_to_phase_voltage",
+		Help:      "Voltage between two phases in V",
+	}, []string{"device", "phase1", "phase2"})
+
+	smartMeterVoltage = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespaceMeter,
+		Name:      "phase_voltage",
+		Help:      "Voltage between phase and neutral in V",
+	}, []string{"device", "phase"})
 )
 
 func collectMetricsFromTarget(client *fronius.SymoClient) {
@@ -191,10 +244,32 @@ func parseArchiveMetrics(data map[string]fronius.InverterArchive) {
 	}
 }
 
-func parseSmartMeterMetrics(data map[string]fronius.MeterData) {
+func parseSmartMeterMetrics(data map[string]*fronius.SmartMeterData) {
 	log.WithField("meterData", data).Debug("Parsing data.")
-	for key, meter := range data {
-		meterEnergyRealSumConsumedVec.WithLabelValues(key).Set(meter.EnergyRealSumConsumed + config.Symo.OffsetConsumed)
-		meterEnergyRealSumProducedVec.WithLabelValues(key).Set(meter.EnergyRealSumProduced + config.Symo.OffsetProduced)
+	for deviceId, meter := range data {
+		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase1).Set(meter.CurrentACPhase1)
+		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase2).Set(meter.CurrentACPhase2)
+		smartMeterCurrentAcPower.WithLabelValues(deviceId, phase3).Set(meter.CurrentACPhase3)
+		smartMeterReactiveVarAC.WithLabelValues(deviceId, "consumed").Set(meter.EnergyReactiveVArACSumConsumed)
+		smartMeterReactiveVarAC.WithLabelValues(deviceId, "produced").Set(meter.EnergyReactiveVArACSumProduced)
+		smartMeterPhaseFrequencyAvg.WithLabelValues(deviceId).Set(meter.FrequencyPhaseAverage)
+		smartMeterApparentPowerPhases.WithLabelValues(deviceId, phase1).Set(meter.PowerApparentSPhase1)
+		smartMeterApparentPowerPhases.WithLabelValues(deviceId, phase2).Set(meter.PowerApparentSPhase2)
+		smartMeterApparentPowerPhases.WithLabelValues(deviceId, phase3).Set(meter.PowerApparentSPhase3)
+		smartMeterPowerFactorPhase.WithLabelValues(deviceId, phase1).Set(meter.PowerFactorPhase1)
+		smartMeterPowerFactorPhase.WithLabelValues(deviceId, phase2).Set(meter.PowerFactorPhase2)
+		smartMeterPowerFactorPhase.WithLabelValues(deviceId, phase3).Set(meter.PowerFactorPhase3)
+		smartMeterReactivePowerPhase.WithLabelValues(deviceId, phase1).Set(meter.PowerReactiveQPhase1)
+		smartMeterReactivePowerPhase.WithLabelValues(deviceId, phase2).Set(meter.PowerReactiveQPhase2)
+		smartMeterReactivePowerPhase.WithLabelValues(deviceId, phase3).Set(meter.PowerReactiveQPhase3)
+		smartMeterRealPowerPhase.WithLabelValues(deviceId, phase1).Set(meter.PowerRealPPhase1)
+		smartMeterRealPowerPhase.WithLabelValues(deviceId, phase2).Set(meter.PowerRealPPhase2)
+		smartMeterRealPowerPhase.WithLabelValues(deviceId, phase3).Set(meter.PowerRealPPhase3)
+		smartMeterPhaseToPhaseVoltage.WithLabelValues(deviceId, phase1, phase2).Set(meter.VoltageACPhaseToPhase12)
+		smartMeterPhaseToPhaseVoltage.WithLabelValues(deviceId, phase2, phase3).Set(meter.VoltageACPhaseToPhase23)
+		smartMeterPhaseToPhaseVoltage.WithLabelValues(deviceId, phase3, phase1).Set(meter.VoltageACPhaseToPhase31)
+		smartMeterVoltage.WithLabelValues(deviceId, phase1).Set(meter.VoltageACPhase1)
+		smartMeterVoltage.WithLabelValues(deviceId, phase2).Set(meter.VoltageACPhase2)
+		smartMeterVoltage.WithLabelValues(deviceId, phase3).Set(meter.VoltageACPhase3)
 	}
 }

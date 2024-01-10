@@ -75,6 +75,6 @@ func Test_Symo_GetMeterData_GivenUrl_WhenRequestData_ThenParseStruct(t *testing.
 
 	p, err := c.GetMeterData()
 	assert.NoError(t, err)
-	assert.Equal(t, float64(560839), p["0"].EnergyRealSumConsumed)
-	assert.Equal(t, float64(94087), p["0"].EnergyRealSumProduced)
+	assert.Equal(t, float64(117261.0), p["0"].EnergyReactiveVArACSumConsumed)
+	assert.Equal(t, float64(4877178.0), p["0"].EnergyReactiveVArACSumProduced)
 }

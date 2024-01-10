@@ -23,10 +23,60 @@ type (
 			Data SymoData
 		}
 	}
+	SecondaryMeter struct {
+		Category string
+		Label    string
+		MLoc     float64 `json:"MLoc"`
+		Power    float64 `json:"P"`
+	}
+
+	SmartMeterData struct {
+		CurrentACPhase1                float64 `json:"Current_AC_Phase_1"`
+		CurrentACPhase2                float64 `json:"Current_AC_Phase_2"`
+		CurrentACPhase3                float64 `json:"Current_AC_Phase_3"`
+		CurrentACSum                   float64 `json:"Current_AC_Sum"`
+		EnergyReactiveVArACSumConsumed float64 `json:"EnergyReactive_VArAC_Sum_Consumed"`
+		EnergyReactiveVArACSumProduced float64 `json:"EnergyReactive_VArAC_Sum_Produced"`
+		EnergyRealWACMinusAbsolute     float64 `json:"EnergyReal_WAC_Minus_Absolute"`
+		EnergyRealWACPlusAbsolute      float64 `json:"EnergyReal_WAC_Plus_Absolute"`
+		EnergyRealWACSumConsumed       float64 `json:"EnergyReal_WAC_Sum_Consumed"`
+		EnergyRealWACSumProduced       float64 `json:"EnergyReal_WAC_Sum_Produced"`
+		FrequencyPhaseAverage          float64 `json:"Frequency_Phase_Average"`
+		MeterLocationCurrent           float64 `json:"Meter_Location_Current"`
+		PowerApparentSPhase1           float64 `json:"PowerApparent_S_Phase_1"`
+		PowerApparentSPhase2           float64 `json:"PowerApparent_S_Phase_2"`
+		PowerApparentSPhase3           float64 `json:"PowerApparent_S_Phase_3"`
+		PowerApparentSSum              float64 `json:"PowerApparent_S_Sum"`
+		PowerFactorPhase1              float64 `json:"PowerFactor_Phase_1"`
+		PowerFactorPhase2              float64 `json:"PowerFactor_Phase_2"`
+		PowerFactorPhase3              float64 `json:"PowerFactor_Phase_3"`
+		PowerFactorSum                 float64 `json:"PowerFactor_Sum"`
+		PowerReactiveQPhase1           float64 `json:"PowerReactive_Q_Phase_1"`
+		PowerReactiveQPhase2           float64 `json:"PowerReactive_Q_Phase_2"`
+		PowerReactiveQPhase3           float64 `json:"PowerReactive_Q_Phase_3"`
+		PowerReactiveQSum              float64 `json:"PowerReactive_Q_Sum"`
+		PowerRealPPhase1               float64 `json:"PowerReal_P_Phase_1"`
+		PowerRealPPhase2               float64 `json:"PowerReal_P_Phase_2"`
+		PowerRealPPhase3               float64 `json:"PowerReal_P_Phase_3"`
+		PowerRealPSum                  float64 `json:"PowerReal_P_Sum"`
+		VoltageACPhaseToPhase12        float64 `json:"Voltage_AC_PhaseToPhase_12"`
+		VoltageACPhaseToPhase23        float64 `json:"Voltage_AC_PhaseToPhase_23"`
+		VoltageACPhaseToPhase31        float64 `json:"Voltage_AC_PhaseToPhase_31"`
+		VoltageACPhase1                float64 `json:"Voltage_AC_Phase_1"`
+		VoltageACPhase2                float64 `json:"Voltage_AC_Phase_2"`
+		VoltageACPhase3                float64 `json:"Voltage_AC_Phase_3"`
+	}
+
+	SmartMeterResponse struct {
+		Body struct {
+			Data map[string]*SmartMeterData
+		}
+	}
 	// SymoData holds the parsed data from the Symo API.
 	SymoData struct {
-		Inverters map[string]Inverter
-		Site      struct {
+		Inverters       map[string]Inverter
+		SecondaryMeters map[string]SecondaryMeter
+		Site            struct {
 			Mode          string `json:"Mode"`
 			MeterLocation string `json:"Meter_Location"`
 			// PowerGrid is the power supplied by the grid in Watt.
@@ -86,19 +136,6 @@ type (
 	Channel struct {
 		Unit   string
 		Values map[string]float64
-	}
-
-	symoMeter struct {
-		Body struct {
-			Data map[string]MeterData
-		}
-	}
-
-	MeterData struct {
-		// "EnergyReal_WAC_Sum_Consumed": 560839.0,
-		// "EnergyReal_WAC_Sum_Produced": 94087.0,
-		EnergyRealSumConsumed float64 `json:"EnergyReal_WAC_Sum_Consumed"`
-		EnergyRealSumProduced float64 `json:"EnergyReal_WAC_Sum_Produced"`
 	}
 
 	// SymoClient is a wrapper for making API requests against a Fronius Symo device.
@@ -185,7 +222,8 @@ func (c *SymoClient) GetArchiveData() (map[string]InverterArchive, error) {
 	return p.Body.Data, nil
 }
 
-func (c *SymoClient) GetMeterData() (map[string]MeterData, error) {
+// GetMeterData fetches current smart meter data. Items are keyed by their smart meter ID (starting with "0")
+func (c *SymoClient) GetMeterData() (map[string]*SmartMeterData, error) {
 	u, err := url.Parse(c.Options.URL + MeterDataPath)
 	if err != nil {
 		return nil, err
@@ -203,7 +241,7 @@ func (c *SymoClient) GetMeterData() (map[string]MeterData, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
-	p := SymoMeter{}
+	p := SmartMeterResponse{}
 	err = json.NewDecoder(response.Body).Decode(&p)
 	if err != nil {
 		return nil, err
